@@ -166,6 +166,32 @@ def model_info():
     }
 
 
+@app.post("/parse-jd", tags=["Utils"])
+async def parse_jd_pdf(
+    jd_pdf: UploadFile = File(..., description="JD as a PDF file"),
+    _user = Depends(verify_clerk_token),
+):
+    """Extract raw text from a JD PDF file without running the pipeline."""
+    if not jd_pdf.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Must be a PDF file")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        content = await jd_pdf.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        extracted_text = extract_text_from_pdf(tmp_path)
+        return {"extracted_text": extracted_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF extraction failed: {str(e)}")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+
 @app.post("/run/text", tags=["Pipeline"])
 async def run_from_uploads(
     resumes: List[UploadFile] = File(..., description="Resume PDFs"),
