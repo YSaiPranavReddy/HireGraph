@@ -48,7 +48,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-frontend_url = os.getenv("FRONTEND_API_URL", "")
+frontend_url = os.getenv("FRONTEND_URL", os.getenv("FRONTEND_API_URL", ""))
 
 origins = [
     "http://localhost:5173",   # Vite React dev server
@@ -72,11 +72,6 @@ app.add_middleware(
 # Clerk JWT verification
 # ---------------------------------------------------------------------------
 
-CLERK_JWKS_URL = (
-    os.getenv("FRONTEND_API_URL", "").rstrip("/")
-    + "/.well-known/jwks.json"
-)
-
 _bearer = HTTPBearer(auto_error=False)
 
 async def verify_clerk_token(
@@ -84,36 +79,45 @@ async def verify_clerk_token(
 ):
     """
     Verify Clerk JWT on protected endpoints.
-    - Fetches Clerk's public JWKS on every request (cached by httpx in practice).
-    - Returns the decoded payload so endpoints can access user info if needed.
-    - Raises 401 if token is missing or invalid.
+    - Extracts 'iss' from the unverified token to find the JWKS URL.
+    - Fetches Clerk's public JWKS.
+    - Returns the decoded payload.
     """
     if not credentials:
         raise HTTPException(status_code=401, detail="Missing Bearer token")
 
     token = credentials.credentials
     try:
-        from jose import jwt, jwk, JWTError
-        from jose.utils import base64url_decode
-        import json
+        from jose import jwt, jwk
+        import httpx
 
+        # 1. Decode without verification to get kid and iss
+        unverified_header = jwt.get_unverified_header(token)
+        unverified_claims = jwt.get_unverified_claims(token)
+        
+        kid = unverified_header.get("kid")
+        iss = unverified_claims.get("iss")
+        
+        if not iss:
+            raise HTTPException(status_code=401, detail="Token missing 'iss' claim")
+
+        jwks_url = f"{iss.rstrip('/')}/.well-known/jwks.json"
+
+        # 2. Fetch JWKS from the issuer
         async with httpx.AsyncClient() as client:
-            resp = await client.get(CLERK_JWKS_URL, timeout=5)
+            resp = await client.get(jwks_url, timeout=5)
             resp.raise_for_status()
             jwks = resp.json()
 
-        # Decode without verification first to get kid
-        unverified_header = jwt.get_unverified_header(token)
-        kid = unverified_header.get("kid")
-
-        # Find matching key
+        # 3. Find matching key
         key_data = next(
             (k for k in jwks.get("keys", []) if k.get("kid") == kid),
             None
         )
         if not key_data:
-            raise HTTPException(status_code=401, detail="JWT key not found")
+            raise HTTPException(status_code=401, detail="JWT key not found in JWKS")
 
+        # 4. Verify token
         public_key = jwk.construct(key_data)
         payload = jwt.decode(
             token,
