@@ -38,7 +38,8 @@ def get_llm():
     return ChatGroq(
         model="llama-3.1-8b-instant",   # parallel fan-out — 8B is sufficient and faster
         api_key=os.getenv("GROQ_API_KEY"),
-        temperature=0.1
+        temperature=0.1,
+        model_kwargs={"response_format": {"type": "json_object"}}
     )
 
 
