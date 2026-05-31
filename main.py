@@ -48,13 +48,21 @@ app = FastAPI(
     version="1.0.0",
 )
 
+frontend_url = os.getenv("FRONTEND_API_URL", "")
+
+origins = [
+    "http://localhost:5173",   # Vite React dev server
+    "http://localhost:4173",   # Vite preview
+    "http://localhost:3000",   # fallback
+]
+
+if frontend_url:
+    origins.append(frontend_url.rstrip("/"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite React dev server
-        "http://localhost:4173",   # Vite preview
-        "http://localhost:3000",   # fallback
-    ],
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
