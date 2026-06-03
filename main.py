@@ -36,7 +36,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from graph.pipeline import run_pipeline
 from utils.pdf_reader import extract_text_from_pdf
-from utils.helpers import summarise_pipeline_result
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -521,16 +520,3 @@ async def run_from_json(payload: RunJsonRequest, _user = Depends(verify_clerk_to
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}")
 
-
-@app.post("/run/summary", tags=["Pipeline"])
-async def run_summary(
-    jd_text: str = Form(...),
-    resumes: List[UploadFile] = File(...),
-    _user = Depends(verify_clerk_token),
-):
-    """
-    Same as /run/text but returns only the compact summary (faster response).
-    """
-    # Reuse the full endpoint logic
-    full_result = await run_from_uploads(jd_text=jd_text, resumes=resumes)
-    return summarise_pipeline_result(full_result)
