@@ -72,7 +72,30 @@ app.add_middleware(
 # Clerk JWT verification
 # ---------------------------------------------------------------------------
 
+import time
+from jose import jwt, jwk
+
 _bearer = HTTPBearer(auto_error=False)
+
+# JWKS cache: {jwks_url: {"keys": [...], "fetched_at": float}}
+_jwks_cache: dict = {}
+_JWKS_TTL = 3600  # seconds — Clerk rotates keys very infrequently
+
+
+async def _get_jwks(jwks_url: str) -> dict:
+    """Fetch JWKS from Clerk, caching for 1 hour."""
+    cached = _jwks_cache.get(jwks_url)
+    if cached and (time.time() - cached["fetched_at"]) < _JWKS_TTL:
+        return cached["keys"]
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(jwks_url, timeout=5)
+        resp.raise_for_status()
+        keys = resp.json().get("keys", [])
+
+    _jwks_cache[jwks_url] = {"keys": keys, "fetched_at": time.time()}
+    return keys
+
 
 async def verify_clerk_token(
     credentials: HTTPAuthorizationCredentials = Security(_bearer)
@@ -80,7 +103,7 @@ async def verify_clerk_token(
     """
     Verify Clerk JWT on protected endpoints.
     - Extracts 'iss' from the unverified token to find the JWKS URL.
-    - Fetches Clerk's public JWKS.
+    - Fetches Clerk's public JWKS (cached for 1 hour).
     - Returns the decoded payload.
     """
     if not credentials:
@@ -88,32 +111,28 @@ async def verify_clerk_token(
 
     token = credentials.credentials
     try:
-        from jose import jwt, jwk
-        import httpx
-
         # 1. Decode without verification to get kid and iss
         unverified_header = jwt.get_unverified_header(token)
         unverified_claims = jwt.get_unverified_claims(token)
-        
+
         kid = unverified_header.get("kid")
         iss = unverified_claims.get("iss")
-        
+
         if not iss:
             raise HTTPException(status_code=401, detail="Token missing 'iss' claim")
 
         jwks_url = f"{iss.rstrip('/')}/.well-known/jwks.json"
 
-        # 2. Fetch JWKS from the issuer
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(jwks_url, timeout=5)
-            resp.raise_for_status()
-            jwks = resp.json()
+        # 2. Get JWKS (from cache or live)
+        keys = await _get_jwks(jwks_url)
 
         # 3. Find matching key
-        key_data = next(
-            (k for k in jwks.get("keys", []) if k.get("kid") == kid),
-            None
-        )
+        key_data = next((k for k in keys if k.get("kid") == kid), None)
+        if not key_data:
+            # Cache may be stale — force refresh once
+            _jwks_cache.pop(jwks_url, None)
+            keys = await _get_jwks(jwks_url)
+            key_data = next((k for k in keys if k.get("kid") == kid), None)
         if not key_data:
             raise HTTPException(status_code=401, detail="JWT key not found in JWKS")
 
@@ -169,31 +188,6 @@ def model_info():
         "outreach_drafter":  "groq/llama-3.3-70b-versatile",
     }
 
-
-@app.post("/parse-jd", tags=["Utils"])
-async def parse_jd_pdf(
-    jd_pdf: UploadFile = File(..., description="JD as a PDF file"),
-    _user = Depends(verify_clerk_token),
-):
-    """Extract raw text from a JD PDF file without running the pipeline."""
-    if not jd_pdf.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Must be a PDF file")
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        content = await jd_pdf.read()
-        tmp.write(content)
-        tmp_path = tmp.name
-
-    try:
-        extracted_text = extract_text_from_pdf(tmp_path)
-        return {"extracted_text": extracted_text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF extraction failed: {str(e)}")
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
 
 
 @app.post("/run/text", tags=["Pipeline"])
@@ -505,7 +499,7 @@ async def parse_jd_pdf(
 
 
 @app.post("/run/json", tags=["Pipeline"])
-def run_from_json(payload: RunJsonRequest):
+async def run_from_json(payload: RunJsonRequest, _user = Depends(verify_clerk_token)):
     """
     Testing endpoint — accepts pre-extracted resume text as JSON.
     Useful for testing without PDFs.
@@ -532,6 +526,7 @@ def run_from_json(payload: RunJsonRequest):
 async def run_summary(
     jd_text: str = Form(...),
     resumes: List[UploadFile] = File(...),
+    _user = Depends(verify_clerk_token),
 ):
     """
     Same as /run/text but returns only the compact summary (faster response).

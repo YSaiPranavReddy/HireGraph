@@ -16,9 +16,6 @@ fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9  # needed for FastAPI file uploads
 
-# ── UI ────────────────────────────────────────────────────────────────────────
-streamlit>=1.35.0
-
 # ── Utilities ────────────────────────────────────────────────────────────────
 python-dotenv>=1.0.0
 pydantic>=2.0.0

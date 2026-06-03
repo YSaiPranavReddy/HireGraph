@@ -37,3 +37,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local test / debug scripts — never commit these
+test_*.py
+test_*.json
