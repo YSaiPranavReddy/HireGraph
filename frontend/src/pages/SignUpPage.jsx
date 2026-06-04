@@ -18,14 +18,9 @@ export default function SignUpPage() {
     if (!isLoaded) return;
     signUp.authenticateWithRedirect({
       strategy: 'oauth_google',
-      redirectUrl: '/sso-callback',
-      redirectUrlSignIn: '/dashboard',
-      redirectUrlSignUp: '/dashboard',
+      redirectUrl: `${window.location.origin}/sso-callback`,
+      redirectUrlComplete: '/dashboard',
     });
-  };
-
-  const handleMockSocial = (provider) => {
-    setError(`${provider} login is not configured yet.`);
   };
 
   const submit = async (e) => {
