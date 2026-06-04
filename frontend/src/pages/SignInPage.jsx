@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSignIn, useAuth } from '@clerk/clerk-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import './AuthPages.css';
 
 export default function SignInPage() {
@@ -15,8 +15,7 @@ export default function SignInPage() {
 
   // Already logged in → send straight to dashboard
   if (isSignedIn) {
-    navigate('/dashboard', { replace: true });
-    return null;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleGoogle = async () => {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSignUp, useAuth } from '@clerk/clerk-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import './AuthPages.css';
 
 export default function SignUpPage() {
@@ -17,8 +17,7 @@ export default function SignUpPage() {
 
   // Already logged in → send straight to dashboard
   if (isSignedIn) {
-    navigate('/dashboard', { replace: true });
-    return null;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleGoogle = async () => {
@@ -34,7 +33,6 @@ export default function SignUpPage() {
     }
   };
 
-
   const submit = async (e) => {
     e.preventDefault();
     if (!isLoaded) return;
@@ -42,10 +40,9 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      await signUp.create({
-        emailAddress,
-        password,
-      });
+      // Only pass email + password — Clerk dashboard must have other fields as optional
+      await signUp.create({ emailAddress, password });
+      // Send email verification code
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
       setPendingVerification(true);
     } catch (err) {
@@ -76,6 +73,7 @@ export default function SignUpPage() {
     }
   };
 
+  // ── Email verification screen ──────────────────────────────────────────────
   if (pendingVerification) {
     return (
       <div className="auth-page">
@@ -83,43 +81,58 @@ export default function SignUpPage() {
           <img src="/hiregraph.png" alt="HireGraph" className="auth-top-logo" />
         </Link>
         <div className="auth-container">
-          <h1 className="auth-title">Verify your email</h1>
-          <p style={{ fontSize: '13px', color: '#ccc', marginBottom: '16px' }}>
-            We sent a code to {emailAddress}.
+          <h1 className="auth-title">Check your email</h1>
+          <p style={{ fontSize: '12px', color: '#aaa', marginBottom: '20px' }}>
+            We sent a 6-digit code to <strong style={{ color: '#fff' }}>{emailAddress}</strong>
           </p>
-          
+
           {error && <div className="auth-error">{error}</div>}
-          
+
           <form onSubmit={verify}>
             <div className="auth-form-group">
               <label className="auth-label">Verification Code</label>
-              <input 
-                type="text" 
-                className="auth-input" 
+              <input
+                type="text"
+                className="auth-input"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="123456"
-                required 
+                maxLength={6}
+                autoFocus
+                required
               />
             </div>
             <button type="submit" className="auth-submit-btn" disabled={isLoading}>
               {isLoading ? 'Verifying...' : 'Verify Email'}
             </button>
           </form>
+
+          <div className="auth-links" style={{ marginTop: '0' }}>
+            <div>
+              Wrong email?{' '}
+              <button
+                onClick={() => setPendingVerification(false)}
+                style={{ background: 'none', border: 'none', color: '#a391ef', cursor: 'pointer', fontSize: '11px', padding: 0 }}
+              >
+                Go back
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
+  // ── Main sign-up form ──────────────────────────────────────────────────────
   return (
     <div className="auth-page">
       <Link to="/" className="auth-top-logo-wrap">
         <img src="/hiregraph.png" alt="HireGraph" className="auth-top-logo" />
       </Link>
-      
+
       <div className="auth-container">
         <h1 className="auth-title">Create an account</h1>
-        
+
         <div className="auth-social-grid">
           <button type="button" onClick={handleGoogle} className="auth-social-btn google">
             <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
@@ -134,27 +147,27 @@ export default function SignUpPage() {
         <form onSubmit={submit}>
           <div className="auth-form-group">
             <label className="auth-label">Email</label>
-            <input 
-              type="email" 
-              className="auth-input" 
+            <input
+              type="email"
+              className="auth-input"
               value={emailAddress}
               onChange={(e) => setEmailAddress(e.target.value)}
               placeholder="your@email.com"
-              required 
+              required
             />
           </div>
           <div className="auth-form-group">
             <label className="auth-label">Password</label>
-            <input 
-              type={showPassword ? "text" : "password"} 
-              className="auth-input" 
+            <input
+              type={showPassword ? 'text' : 'password'}
+              className="auth-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="correct horse battery staple"
-              required 
+              required
             />
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="auth-password-eye"
               onClick={() => setShowPassword(!showPassword)}
             >
@@ -173,7 +186,7 @@ export default function SignUpPage() {
               </svg>
             </button>
           </div>
-          
+
           <div className="auth-terms">
             By signing up you agree to our <a href="#">terms of service</a> and <a href="#">privacy policy</a>.
           </div>
