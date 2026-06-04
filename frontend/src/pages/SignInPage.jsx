@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useSignIn } from '@clerk/clerk-react';
+import { useSignIn, useAuth } from '@clerk/clerk-react';
 import { Link, useNavigate } from 'react-router-dom';
 import './AuthPages.css';
 
 export default function SignInPage() {
+  const { isSignedIn } = useAuth();
   const { isLoaded, signIn, setActive } = useSignIn();
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
@@ -11,6 +12,12 @@ export default function SignInPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Already logged in → send straight to dashboard
+  if (isSignedIn) {
+    navigate('/dashboard', { replace: true });
+    return null;
+  }
 
   const handleGoogle = async () => {
     if (!isLoaded) return;

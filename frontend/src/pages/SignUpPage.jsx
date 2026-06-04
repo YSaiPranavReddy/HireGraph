@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useSignUp } from '@clerk/clerk-react';
+import { useSignUp, useAuth } from '@clerk/clerk-react';
 import { Link, useNavigate } from 'react-router-dom';
 import './AuthPages.css';
 
 export default function SignUpPage() {
+  const { isSignedIn } = useAuth();
   const { isLoaded, signUp, setActive } = useSignUp();
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
@@ -14,14 +15,25 @@ export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleGoogle = () => {
+  // Already logged in → send straight to dashboard
+  if (isSignedIn) {
+    navigate('/dashboard', { replace: true });
+    return null;
+  }
+
+  const handleGoogle = async () => {
     if (!isLoaded) return;
-    signUp.authenticateWithRedirect({
-      strategy: 'oauth_google',
-      redirectUrl: `${window.location.origin}/sso-callback`,
-      redirectUrlComplete: '/dashboard',
-    });
+    try {
+      await signUp.authenticateWithRedirect({
+        strategy: 'oauth_google',
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectUrlComplete: '/dashboard',
+      });
+    } catch (err) {
+      setError(err.errors?.[0]?.longMessage || err.message || 'Google sign-in failed.');
+    }
   };
+
 
   const submit = async (e) => {
     e.preventDefault();
