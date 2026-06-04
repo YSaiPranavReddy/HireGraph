@@ -12,13 +12,17 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleGoogle = () => {
+  const handleGoogle = async () => {
     if (!isLoaded) return;
-    signIn.authenticateWithRedirect({
-      strategy: 'oauth_google',
-      redirectUrl: `${window.location.origin}/sso-callback`,
-      redirectUrlComplete: '/dashboard',
-    });
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: 'oauth_google',
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectUrlComplete: '/dashboard',
+      });
+    } catch (err) {
+      setError(err.errors?.[0]?.longMessage || err.message || 'Google sign-in failed.');
+    }
   };
 
   const submit = async (e) => {
